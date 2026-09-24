@@ -1,0 +1,135 @@
+% Requires in the preamble:
+% \usepackage{forest}
+% \usetikzlibrary{arrows.meta}
+% Colors (skip any you already define):
+% \definecolor{rootColor}{HTML}{34495E}
+% \definecolor{c1}{HTML}{1F77B4}
+% \definecolor{c2}{HTML}{FF7F0E}
+% \definecolor{c3}{HTML}{2CA02C}
+% \definecolor{c4}{HTML}{D62728}
+% \definecolor{c5}{HTML}{9467BD}
+% \definecolor{c6}{HTML}{8C564B}
+% \definecolor{c7}{HTML}{E377C2}
+% \definecolor{c8}{HTML}{17BECF}
+% \definecolor{c9}{HTML}{7F7F7F}
+
+\begin{figure*}[t]
+\centering
+
+\begin{forest}
+    for tree={
+        grow'=0,
+        anchor=west,
+        child anchor=west,
+        parent anchor=east,
+        rounded corners=2pt,
+        font=\scriptsize,
+        inner sep=3pt,
+        l sep=0.55cm,
+        s sep=0.12cm,
+        edge={thick, gray!70, -{Stealth[length=1.6mm]}},
+        edge path={
+            \noexpand\path[\forestoption{edge}]
+            (!u.parent anchor) -- +(0.25cm,0) |- (.child anchor)
+            \forestoption{edge label};
+        }
+    },
+    rootNode/.style={
+        draw=rootColor,
+        thick,
+        fill=rootColor!15,
+        font=\small\bfseries,
+        rotate=90,
+        anchor=north,
+        child anchor=south,
+        parent anchor=south,
+        minimum width=4cm,
+        minimum height=0.8cm,
+        align=center
+    },
+    sec/.style={
+        draw=#1,
+        thick,
+        fill=#1!15,
+        text width=3.9cm,
+        minimum height=0.7cm,
+        align=left
+    },
+    items/.style={
+        draw=#1!50,
+        thin,
+        fill=white,
+        rounded corners=1pt,
+        text width=10.4cm,
+        font=\tiny,
+        align=left,
+        edge={thin, #1!60, -{Stealth[length=1.3mm]}}
+    }
+    [{Paper Organization}, rootNode
+        [{\textbf{\S I} Introduction}, sec=c1
+            [{\textbullet\ Background and motivation \quad
+              \textbullet\ Convergence of agentic AI, IoV, and 5G/B5G\\
+              \textbullet\ The imperative of trustworthiness and accountability \quad
+              \textbullet\ Scope and contributions of the survey\\
+              \textbullet\ Comparison with existing surveys \quad
+              \textbullet\ Organization of the paper}, items=c1]
+        ]
+        [{\textbf{\S II} Theoretical Foundations\\
+          \& Reference Architecture}, sec=c2
+            [{\textbullet\ The agentic AI paradigm \quad
+              \textbullet\ 5G-enabled IoV ecosystem\\
+              \textbullet\ Defining trust and accountability in agency \quad
+              \textbullet\ Proposed reference architecture}, items=c2]
+        ]
+        [{\textbf{\S III} Taxonomy of Agentic AI\\
+          Systems in 5G-Enabled IoV}, sec=c3
+            [{\textbullet\ Locus of intelligence (the edge-cloud continuum)\\
+              \textbullet\ Agentic modalities and use cases \quad
+              \textbullet\ Multi-agent collaboration models}, items=c3]
+        ]
+        [{\textbf{\S IV} Dimensions of\\
+          Trustworthiness in Agentic IoV}, sec=c4
+            [{\textbullet\ Explainability and interpretability (XAI) \quad
+              \textbullet\ Safety and operational reliability\\
+              \textbullet\ Security and adversarial resilience \quad
+              \textbullet\ Privacy-preserving agentic behaviors\\
+              \textbullet\ Robustness and out-of-distribution (OOD) handling}, items=c4]
+        ]
+        [{\textbf{\S V} Accountability, Auditing,\\
+          \& Governance Frameworks}, sec=c5
+            [{\textbullet\ The accountability gap in autonomous agency \quad
+              \textbullet\ Provenance and decision tracing\\
+              \textbullet\ Continuous auditing mechanisms \quad
+              \textbullet\ Legal, ethical, and regulatory alignment\\
+              \textbullet\ Incentive and penalty mechanisms}, items=c5]
+        ]
+        [{\textbf{\S VI} Technological Enablers\\
+          for Trust \& Accountability}, sec=c6
+            [{\textbullet\ Distributed ledger technologies (DLT) and smart contracts\\
+              \textbullet\ Trustworthy federated agentic learning (TFAL)\\
+              \textbullet\ Zero-trust architecture (ZTA) in 5G IoV \quad
+              \textbullet\ Digital twins and simulation sandboxes}, items=c6]
+        ]
+        [{\textbf{\S VII} Critical Synthesis \&\\
+          Comparative Analysis}, sec=c7
+            [{\textbullet\ State-of-the-art solutions matrix \quad
+              \textbullet\ The ``claimed vs.\ demonstrated'' agency gap\\
+              \textbullet\ Evaluation metrics and open benchmarks}, items=c7]
+        ]
+        [{\textbf{\S VIII} Open Challenges \&\\
+          Future Research Directions}, sec=c8
+            [{\textbullet\ Migration to 6G and ultra-massive agentic collaboration\\
+              \textbullet\ Real-time reasoning constraints \quad
+              \textbullet\ Dynamic intent resolution under high uncertainty\\
+              \textbullet\ Cross-border and multi-stakeholder governance}, items=c8]
+        ]
+        [{\textbf{\S IX} Conclusion}, sec=c9
+            [{\textbullet\ Summary of key findings \quad
+              \textbullet\ Research outlook}, items=c9]
+        ]
+    ]
+\end{forest}
+
+\caption{Organization of the survey.}
+\label{fig:paper_organization}
+\end{figure*}
