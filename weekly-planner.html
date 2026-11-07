@@ -116,7 +116,8 @@ const COLORS=["#2563eb","#7c3aed","#db2777","#ea580c","#16a34a","#0891b2","#dc26
 const PRI=["High","Medium","Low"];
 const KEY="weeklyPlanner.v1";
 const $=s=>document.querySelector(s);
-let offset=0,saveWarned=false,data=load();
+let offset=0,saveWarned=false,shownDay="",data=load();
+window.onerror=msg=>{document.body.insertAdjacentHTML("afterbegin",'<div style="background:#dc2626;color:#fff;padding:10px;font-weight:700">Error: '+String(msg).replace(/</g,"&lt;")+"</div>")};
 
 function h(tag,props={},...kids){
   const e=document.createElement(tag);
@@ -154,7 +155,8 @@ function render(){
   if(document.activeElement!==notes)notes.value=w.notes;
   $("#printNotes").textContent=w.notes;
   let done=0,total=0;
-  const grid=$("#grid");grid.replaceChildren();
+  shownDay=today;
+  const grid=$("#grid");grid.textContent="";
   w.days.forEach((tasks,i)=>{
     const date=addDays(start,i),isToday=iso(date)===today,d=tasks.filter(t=>t.done).length;
     done+=d;total+=tasks.length;
@@ -272,7 +274,7 @@ function exportData(){
   setTimeout(()=>URL.revokeObjectURL(a.href),1000);
 }
 function importData(file){
-  file.text().then(txt=>{
+  new Promise((ok,fail)=>{const r=new FileReader();r.onload=()=>ok(r.result);r.onerror=()=>fail(r.error);r.readAsText(file)}).then(txt=>{
     const raw=JSON.parse(txt);
     if(!raw||typeof raw.weeks!=="object")throw Error("this is not a Weekly Planner backup");
     const weeks={};
@@ -310,7 +312,8 @@ document.addEventListener("keydown",e=>{
   const inp=$(`#grid .day:nth-child(${(new Date().getDay()+6)%7+1}) input[name=title]`);
   inp.scrollIntoView({block:"center"});inp.focus();
 });
-addEventListener("focus",render); // refresh "today" after midnight or when returning to the tab
+// refresh the "today" highlight only when the date really changed, so typing is never wiped
+document.addEventListener("visibilitychange",()=>{if(!document.hidden&&iso(new Date())!==shownDay)render()});
 applyTheme();render();
 </script>
 </body>
