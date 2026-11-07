@@ -111,12 +111,12 @@ form.add input[name=title],form.add button{grid-column:1/-1}
   <div id="grid" class="grid"></div>
 </main>
 <script>
-const DAYS=["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"];
-const COLORS=["#2563eb","#7c3aed","#db2777","#ea580c","#16a34a","#0891b2","#dc2626"];
+const DAYS=["Saturday","Sunday","Monday","Tuesday","Wednesday","Thursday","Friday"];
+const COLORS=["#0891b2","#dc2626","#2563eb","#7c3aed","#db2777","#ea580c","#16a34a"];
 const PRI=["High","Medium","Low"];
 const KEY="weeklyPlanner.v1";
 const $=s=>document.querySelector(s);
-let offset=0,saveWarned=false,shownDay="",data=load();
+let offset=0,saveWarned=false,shownDay="",data;
 window.onerror=msg=>{document.body.insertAdjacentHTML("afterbegin",'<div style="background:#dc2626;color:#fff;padding:10px;font-weight:700">Error: '+String(msg).replace(/</g,"&lt;")+"</div>")};
 
 function h(tag,props={},...kids){
@@ -130,8 +130,8 @@ function h(tag,props={},...kids){
   return e;
 }
 function load(){
-  try{const d=JSON.parse(localStorage.getItem(KEY));if(d&&typeof d.weeks==="object")return d}catch(e){}
-  return{weeks:{},theme:matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light"};
+  try{const d=JSON.parse(localStorage.getItem(KEY));if(d&&typeof d.weeks==="object"){if(d.start!=="sat"){d.weeks=toSaturdayWeeks(d.weeks);d.start="sat"}return d}}catch(e){}
+  return{start:"sat",weeks:{},theme:matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light"};
 }
 function save(){
   for(const k in data.weeks){const w=data.weeks[k];if(!w.notes&&w.days.every(d=>!d.length))delete data.weeks[k]}
@@ -142,8 +142,19 @@ const uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,7);
 const pad=n=>String(n).padStart(2,"0");
 const iso=d=>d.getFullYear()+"-"+pad(d.getMonth()+1)+"-"+pad(d.getDate());
 const addDays=(d,n)=>new Date(d.getFullYear(),d.getMonth(),d.getDate()+n);
-const mondayOf=d=>addDays(d,-((d.getDay()+6)%7));
-const weekStart=()=>addDays(mondayOf(new Date()),offset*7);
+const dayIndex=d=>(d.getDay()+1)%7; // Saturday=0 ... Friday=6
+const startOf=d=>addDays(d,-dayIndex(d));
+const weekStart=()=>addDays(startOf(new Date()),offset*7);
+// Data saved before the week started on Saturday is Monday first: move every task to its real date.
+function toSaturdayWeeks(weeks){
+  const out={},get=k=>out[k]||(out[k]={notes:"",days:DAYS.map(()=>[])});
+  for(const k in weeks){
+    const[y,m,d]=k.split("-").map(Number),w=weeks[k];
+    if(w.notes)get(iso(startOf(new Date(y,m-1,d)))).notes=w.notes;
+    w.days.forEach((ts,i)=>{const date=new Date(y,m-1,d+i);if(ts.length)get(iso(startOf(date))).days[dayIndex(date)].push(...ts)});
+  }
+  return out;
+}
 function week(key){return data.weeks[key]||(data.weeks[key]={notes:"",days:DAYS.map(()=>[])})}
 const curWeek=()=>week(iso(weekStart()));
 
@@ -277,7 +288,7 @@ function importData(file){
   new Promise((ok,fail)=>{const r=new FileReader();r.onload=()=>ok(r.result);r.onerror=()=>fail(r.error);r.readAsText(file)}).then(txt=>{
     const raw=JSON.parse(txt);
     if(!raw||typeof raw.weeks!=="object")throw Error("this is not a Weekly Planner backup");
-    const weeks={};
+    let weeks={};
     for(const k in raw.weeks){
       if(!/^\d{4}-\d{2}-\d{2}$/.test(k))continue;
       const w=raw.weeks[k]||{};
@@ -286,6 +297,7 @@ function importData(file){
         time:/^\d{2}:\d{2}$/.test(t.time)?t.time:"",
         priority:PRI.includes(t.priority)?t.priority:"",done:!!t.done})))};
     }
+    if(raw.start!=="sat")weeks=toSaturdayWeeks(weeks);
     if(!confirm(`Replace all current data with this backup (${Object.keys(weeks).length} weeks)?`))return;
     data.weeks=weeks;save();render();
   }).catch(e=>alert("Could not import this file: "+e.message));
@@ -309,12 +321,12 @@ document.addEventListener("keydown",e=>{
   if((e.key||"").toLowerCase()!=="n"||e.ctrlKey||e.metaKey||e.altKey)return;
   if(/^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement.tagName))return;
   e.preventDefault();offset=0;render();
-  const inp=$(`#grid .day:nth-child(${(new Date().getDay()+6)%7+1}) input[name=title]`);
+  const inp=$(`#grid .day:nth-child(${dayIndex(new Date())+1}) input[name=title]`);
   inp.scrollIntoView({block:"center"});inp.focus();
 });
 // refresh the "today" highlight only when the date really changed, so typing is never wiped
 document.addEventListener("visibilitychange",()=>{if(!document.hidden&&iso(new Date())!==shownDay)render()});
-applyTheme();render();
+data=load();applyTheme();render();
 </script>
 </body>
 </html>
