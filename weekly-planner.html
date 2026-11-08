@@ -43,10 +43,12 @@ li.task.pHigh{border-left-color:#dc2626}li.task.pMedium{border-left-color:#f59e0
 li.task.done{opacity:.6}
 li.task.done .t{text-decoration:line-through;color:var(--muted)}
 li.dragging{opacity:.3}
+li.task.cont{border-left-style:dashed;background-image:repeating-linear-gradient(45deg,transparent 0 8px,rgba(127,127,127,.09) 8px 16px)}
+.span{font-weight:700;color:var(--accent);white-space:nowrap}
 li.empty{color:var(--muted);font-size:13px;text-align:center;padding:10px;border:1px dashed var(--line)}
 .body{flex:1;min-width:0}
 .t{word-break:break-word;cursor:text}
-.meta{font-size:12px;color:var(--muted);display:flex;gap:6px;align-items:center;margin-top:3px}
+.meta{font-size:12px;color:var(--muted);display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-top:3px}
 .tag{font-size:11px;font-weight:700;color:#fff;padding:1px 6px}
 .tag.High{background:#dc2626}.tag.Medium{background:#f59e0b}.tag.Low{background:#16a34a}
 .del{border:0;background:none;padding:0 4px;color:var(--muted);font-size:15px}
@@ -115,7 +117,7 @@ form.add input[name=title],form.add button{grid-column:1/-1}
       <div id="weekText"></div>
       <div class="bar"><i id="weekBar"></i></div>
       <div id="overdue"></div>
-      <div class="hint">Press N to add a task to today. Double click a task to edit it. Drag a task to move it to another day. Click a day's coloured header to open its day plan.</div>
+      <div class="hint">Press N to add a task to today. Double click a task to edit it. Drag a task to move it to another day. Click a day's coloured header to open its day plan. Use 📆 on a task to make it last several days.</div>
     </div>
   </section>
   <div id="grid" class="grid"></div>
@@ -125,6 +127,7 @@ const DAYS=["Saturday","Sunday","Monday","Tuesday","Wednesday","Thursday","Frida
 const COLORS=["#0891b2","#dc2626","#2563eb","#7c3aed","#db2777","#ea580c","#16a34a"];
 const PRI=["High","Medium","Low"];
 const KEY="weeklyPlanner.v1";
+const MAXDAYS=30; // longest a task can last
 const $=s=>document.querySelector(s);
 let offset=0,view="week",dayIdx=0,saveWarned=false,shownDay="",data;
 window.onerror=msg=>{document.body.insertAdjacentHTML("afterbegin",'<div style="background:#dc2626;color:#fff;padding:10px;font-weight:700">Error: '+String(msg).replace(/</g,"&lt;")+"</div>")};
@@ -179,21 +182,21 @@ function render(){
   shownDay=today;
   const grid=$("#grid");grid.textContent="";grid.className=view==="day"?"dayplan":"grid";
   w.days.forEach((tasks,i)=>{
-    const date=addDays(start,i),isToday=iso(date)===today,d=tasks.filter(t=>t.done).length;
-    done+=d;total+=tasks.length;
+    const date=addDays(start,i),isToday=iso(date)===today,items=itemsOn(date),d=items.filter(it=>it.t.done).length;
+    done+=tasks.filter(t=>t.done).length;total+=tasks.length; // each task counted once, on its first day
     if(view==="day"&&i!==dayIdx)return;
     const head=h("div",{className:"dh",style:"background:"+COLORS[i]},
       h("div",{className:"row"},h("b",{textContent:DAYS[i]}),isToday&&h("span",{className:"badge",textContent:"TODAY"})),
-      h("div",{className:"row"},h("small",{textContent:date.toLocaleDateString(undefined,{day:"numeric",month:"long"})}),h("small",{textContent:`${d}/${tasks.length} done`})),
-      h("div",{className:"bar"},h("i",{style:"width:"+(tasks.length?d/tasks.length*100:0)+"%"})));
+      h("div",{className:"row"},h("small",{textContent:date.toLocaleDateString(undefined,{day:"numeric",month:"long"})}),h("small",{textContent:`${d}/${items.length} done`})),
+      h("div",{className:"bar"},h("i",{style:"width:"+(items.length?d/items.length*100:0)+"%"})));
     const col=h("section",{className:"day"+(isToday?" today":"")},head);
-    if(view==="day")col.append(dayNav(),addForm(i),...daySlots(tasks,i));
+    if(view==="day")col.append(dayNav(),addForm(i),...daySlots(items,i));
     else{
       head.classList.add("open");head.title="Open the day plan";
       head.onclick=()=>{view="day";dayIdx=i;render()};
       const ul=h("ul");
-      ordered(tasks).forEach(t=>ul.append(taskEl(t)));
-      if(!tasks.length)ul.append(h("li",{className:"empty",textContent:"No tasks yet"}));
+      ordered(items).forEach(it=>ul.append(taskEl(it)));
+      if(!items.length)ul.append(h("li",{className:"empty",textContent:"No tasks yet"}));
       col.append(ul,addForm(i));
       dropZone(col,i);
     }
@@ -208,9 +211,19 @@ function render(){
   el.className=od?"overdue":"";
 }
 
+// Everything shown on a date: its own tasks (part 1) plus multi-day tasks started up to MAXDAYS earlier.
+function itemsOn(date){
+  const its=[];
+  for(let back=0;back<MAXDAYS;back++){
+    const d=addDays(date,-back),w=data.weeks[iso(startOf(d))];
+    if(w)w.days[dayIndex(d)].forEach(t=>{if((t.days||1)>back)its.push({t,part:back+1})});
+  }
+  return its;
+}
+const timeOf=it=>it.part>1?"":it.t.time; // a task's time applies to its first day only
 // undone first, then by time (tasks without a time last), done tasks at the bottom
-const tkey=t=>t.time||"99";
-const ordered=ts=>[...ts].sort((a,b)=>a.done-b.done||(tkey(a)<tkey(b)?-1:tkey(a)>tkey(b)?1:0));
+const tkey=it=>timeOf(it)||"99";
+const ordered=its=>[...its].sort((a,b)=>a.t.done-b.t.done||(tkey(a)<tkey(b)?-1:tkey(a)>tkey(b)?1:0));
 const PERIODS=[[0,"🌙 Night"],[6,"🌅 Morning"],[12,"☀ Afternoon"],[17,"🌆 Evening"]];
 function dayNav(){
   const go=n=>{dayIdx+=n;if(dayIdx<0){dayIdx=6;offset--}if(dayIdx>6){dayIdx=0;offset++}render()};
@@ -220,34 +233,37 @@ function dayNav(){
     h("button",{textContent:"Next day ▶",onclick:()=>go(1)}),
     h("button",{textContent:"🗓 Back to week",onclick:()=>{view="week";render()}}));
 }
-function daySlots(tasks,day){
+function daySlots(items,day){
   const hours=new Set([...Array(18)].map((_,i)=>i+6)); // 06:00 to 23:00, plus any other hour that has tasks
-  tasks.forEach(t=>t.time&&hours.add(+t.time.slice(0,2)));
-  const out=[h("div",{className:"period",textContent:"📌 Anytime (no time set)"}),slot("＋ Add","",tasks.filter(t=>!t.time),day)];
+  items.forEach(it=>timeOf(it)&&hours.add(+timeOf(it).slice(0,2)));
+  const out=[h("div",{className:"period",textContent:"📌 All day or no time set"}),slot("＋ Add","",items.filter(it=>!timeOf(it)),day)];
   let period;
   [...hours].sort((a,b)=>a-b).forEach(hr=>{
     const p=PERIODS.filter(([from])=>from<=hr).pop()[1];
     if(p!==period)out.push(h("div",{className:"period",textContent:period=p}));
-    out.push(slot(pad(hr)+":00",pad(hr)+":00",tasks.filter(t=>t.time&&+t.time.slice(0,2)===hr),day));
+    out.push(slot(pad(hr)+":00",pad(hr)+":00",items.filter(it=>timeOf(it)&&+timeOf(it).slice(0,2)===hr),day));
   });
   return out;
 }
-function slot(label,time,tasks,day){
-  const ul=h("ul");ordered(tasks).forEach(t=>ul.append(taskEl(t)));
+function slot(label,time,items,day){
+  const ul=h("ul");ordered(items).forEach(it=>ul.append(taskEl(it)));
   const row=h("div",{className:"slot"},h("button",{className:"hr",textContent:label,title:"Add a task at this time",onclick:()=>{
     const f=$(`#grid form[data-day="${day}"]`);f.elements.time.value=time;f.elements.title.focus()}}),ul);
   dropZone(row,day,time);
   return row;
 }
-function taskEl(t){
+function taskEl({t,part}){
+  const len=t.days||1,time=part>1?"":t.time;
   const title=h("span",{className:"t",textContent:t.title,title:"Double click to edit"});
   title.addEventListener("dblclick",()=>edit(title,t));
-  const meta=(t.time||t.priority)&&h("div",{className:"meta"},
-    t.time&&h("span",{textContent:"🕒 "+t.time}),
+  const meta=(time||t.priority||len>1)&&h("div",{className:"meta"},
+    len>1&&h("span",{className:"span",textContent:`📆 Day ${part} of ${len}`}),
+    time&&h("span",{textContent:"🕒 "+time}),
     t.priority&&h("span",{className:"tag "+t.priority,textContent:t.priority}));
-  const li=h("li",{className:"task"+(t.done?" done":"")+(t.priority?" p"+t.priority:""),draggable:true},
+  const li=h("li",{className:"task"+(t.done?" done":"")+(part>1?" cont":"")+(t.priority?" p"+t.priority:""),draggable:true},
     h("input",{type:"checkbox",checked:t.done,"aria-label":"Done",onchange:()=>toggle(t.id)}),
     h("div",{className:"body"},title,meta),
+    h("button",{className:"del",textContent:"📆",title:"Set how many days this task takes","aria-label":"Set number of days",onclick:()=>setDays(t.id)}),
     h("button",{className:"del",textContent:"✕",title:"Delete task","aria-label":"Delete task",onclick:()=>del(t.id)}));
   li.addEventListener("dragstart",e=>{e.dataTransfer.setData("text/plain",t.id);e.dataTransfer.effectAllowed="move";li.classList.add("dragging")});
   li.addEventListener("dragend",()=>li.classList.remove("dragging"));
@@ -268,8 +284,16 @@ function edit(span,t){
   span.replaceWith(inp);inp.focus();inp.select();
 }
 function find(id){
-  for(const arr of curWeek().days){const i=arr.findIndex(t=>t.id===id);if(i>=0)return[arr,i]}
+  for(const k in data.weeks)for(const arr of data.weeks[k].days){const i=arr.findIndex(t=>t.id===id);if(i>=0)return[arr,i]}
   return[];
+}
+function setDays(id){
+  const[arr,i]=find(id);if(!arr)return;
+  const v=prompt(`How many days does "${arr[i].title}" take? (1 to ${MAXDAYS})`,arr[i].days||1);
+  if(v===null)return;
+  const n=parseInt(v,10);
+  if(!(n>=1&&n<=MAXDAYS))return alert(`Please enter a number from 1 to ${MAXDAYS}.`);
+  arr[i].days=n;save();render();
 }
 function toggle(id){
   const[arr,i]=find(id);if(!arr)return;
@@ -299,12 +323,14 @@ function addForm(day){
     h("input",{type:"time",name:"time","aria-label":"Time (optional)"}),
     h("select",{name:"priority","aria-label":"Priority (optional)"},
       h("option",{value:"",textContent:"Priority"}),...PRI.map(p=>h("option",{value:p,textContent:p}))),
+    h("select",{name:"days","aria-label":"Number of days",title:"How many days this task takes"},
+      ...[...Array(MAXDAYS)].map((_,k)=>h("option",{value:k+1,textContent:(k+1)+(k?" days":" day")}))),
     h("button",{className:"primary",textContent:"Add"}));
   f.addEventListener("submit",e=>{
     e.preventDefault();
     const el=f.elements,title=el.title.value.trim();
     if(!title)return el.title.focus();
-    curWeek().days[day].push({id:uid(),title,time:el.time.value,priority:el.priority.value,done:false});
+    curWeek().days[day].push({id:uid(),title,time:el.time.value,priority:el.priority.value,days:+el.days.value,done:false});
     save();render();
     $(`#grid form[data-day="${day}"] input[name=title]`).focus();
   });
@@ -314,7 +340,7 @@ function overdue(){
   const today=iso(new Date());let n=0;
   for(const k in data.weeks){
     const[y,m,d]=k.split("-").map(Number);
-    data.weeks[k].days.forEach((ts,i)=>{if(iso(new Date(y,m-1,d+i))<today)n+=ts.filter(t=>!t.done).length});
+    data.weeks[k].days.forEach((ts,i)=>ts.forEach(t=>{if(!t.done&&iso(new Date(y,m-1,d+i+(t.days||1)-1))<today)n++})); // overdue once its last day has passed
   }
   return n;
 }
@@ -344,7 +370,8 @@ function importData(file){
       weeks[k]={notes:String(w.notes||""),days:DAYS.map((_,i)=>(Array.isArray(w.days&&w.days[i])?w.days[i]:[]).map(t=>({
         id:String(t.id||uid()),title:String(t.title||"Untitled"),
         time:/^\d{2}:\d{2}$/.test(t.time)?t.time:"",
-        priority:PRI.includes(t.priority)?t.priority:"",done:!!t.done})))};
+        priority:PRI.includes(t.priority)?t.priority:"",
+        days:Math.min(MAXDAYS,Math.max(1,parseInt(t.days,10)||1)),done:!!t.done})))};
     }
     if(raw.start!=="sat")weeks=toSaturdayWeeks(weeks);
     if(!confirm(`Replace all current data with this backup (${Object.keys(weeks).length} weeks)?`))return;
