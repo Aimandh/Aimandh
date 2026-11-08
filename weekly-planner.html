@@ -54,6 +54,15 @@ li.empty{color:var(--muted);font-size:13px;text-align:center;padding:10px;border
 .edit{width:100%;padding:2px 4px}
 input[type=checkbox]{appearance:none;-webkit-appearance:none;flex:none;width:20px;height:20px;margin:1px 0 0;padding:0;border:2px solid var(--muted);background:var(--panel);cursor:pointer}
 input[type=checkbox]:checked{border-color:var(--good);background:var(--good) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M3 8l3.5 3.5L13 5' fill='none' stroke='white' stroke-width='2.5'/%3E%3C/svg%3E") center/14px no-repeat}
+.dh.open{cursor:pointer}.dh.open:hover{filter:brightness(1.1)}
+.dayplan .day{max-width:900px;margin:0 auto;min-height:0}
+.daynav{display:flex;flex-wrap:wrap;gap:6px;padding:8px;border-bottom:1px solid var(--line)}
+.period{padding:6px 10px;font-weight:800;font-size:12px;text-transform:uppercase;letter-spacing:.05em;background:var(--bg);border-top:1px solid var(--line)}
+.slot{display:grid;grid-template-columns:72px 1fr;border-top:1px solid var(--line);min-height:40px}
+.slot .hr{border:0;background:none;text-align:left;color:var(--muted);font-weight:700;padding:8px 10px}
+.slot .hr:hover{color:var(--accent)}
+.slot ul{padding:4px 8px}
+.slot.over{background:rgba(37,99,235,.15)}
 form.add{padding:8px;border-top:1px solid var(--line);display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:6px}
 form.add input[name=title],form.add button{grid-column:1/-1}
 @media(max-width:1250px){.grid{grid-template-columns:repeat(auto-fill,minmax(240px,1fr))}}
@@ -69,7 +78,7 @@ form.add input[name=title],form.add button{grid-column:1/-1}
   @page{size:landscape;margin:10mm}
   *{-webkit-print-color-adjust:exact;print-color-adjust:exact}
   body{background:#fff;color:#000;font-size:11px}
-  header button,form.add,.del,.hint,#notes{display:none!important}
+  header button,form.add,.del,.hint,#notes,.daynav{display:none!important}
   header{border:0;padding:0 0 8px}
   #printNotes{display:block}
   main{padding:0}
@@ -86,6 +95,7 @@ form.add input[name=title],form.add button{grid-column:1/-1}
   <button id="todayBtn" class="primary">This week</button>
   <button id="nextBtn">Next week ▶</button>
   <span id="weekLabel"></span>
+  <button id="viewBtn"></button>
   <button id="carryBtn" title="Copy unfinished tasks from the previous week into the week shown">↻ Carry over unfinished tasks</button>
   <button id="printBtn">🖨 Print</button>
   <button id="exportBtn">⬇ Export</button>
@@ -105,7 +115,7 @@ form.add input[name=title],form.add button{grid-column:1/-1}
       <div id="weekText"></div>
       <div class="bar"><i id="weekBar"></i></div>
       <div id="overdue"></div>
-      <div class="hint">Press N to add a task to today. Double click a task to edit it. Drag a task to move it to another day.</div>
+      <div class="hint">Press N to add a task to today. Double click a task to edit it. Drag a task to move it to another day. Click a day's coloured header to open its day plan.</div>
     </div>
   </section>
   <div id="grid" class="grid"></div>
@@ -116,7 +126,7 @@ const COLORS=["#0891b2","#dc2626","#2563eb","#7c3aed","#db2777","#ea580c","#16a3
 const PRI=["High","Medium","Low"];
 const KEY="weeklyPlanner.v1";
 const $=s=>document.querySelector(s);
-let offset=0,saveWarned=false,shownDay="",data;
+let offset=0,view="week",dayIdx=0,saveWarned=false,shownDay="",data;
 window.onerror=msg=>{document.body.insertAdjacentHTML("afterbegin",'<div style="background:#dc2626;color:#fff;padding:10px;font-weight:700">Error: '+String(msg).replace(/</g,"&lt;")+"</div>")};
 
 function h(tag,props={},...kids){
@@ -167,23 +177,29 @@ function render(){
   $("#printNotes").textContent=w.notes;
   let done=0,total=0;
   shownDay=today;
-  const grid=$("#grid");grid.textContent="";
+  const grid=$("#grid");grid.textContent="";grid.className=view==="day"?"dayplan":"grid";
   w.days.forEach((tasks,i)=>{
     const date=addDays(start,i),isToday=iso(date)===today,d=tasks.filter(t=>t.done).length;
     done+=d;total+=tasks.length;
-    const ul=h("ul");
-    [...tasks.filter(t=>!t.done),...tasks.filter(t=>t.done)].forEach(t=>ul.append(taskEl(t)));
-    if(!tasks.length)ul.append(h("li",{className:"empty",textContent:"No tasks yet"}));
-    const bar=h("div",{className:"bar"},h("i",{style:"width:"+(tasks.length?d/tasks.length*100:0)+"%"}));
-    const col=h("section",{className:"day"+(isToday?" today":"")},
-      h("div",{className:"dh",style:"background:"+COLORS[i]},
-        h("div",{className:"row"},h("b",{textContent:DAYS[i]}),isToday&&h("span",{className:"badge",textContent:"TODAY"})),
-        h("div",{className:"row"},h("small",{textContent:date.toLocaleDateString(undefined,{day:"numeric",month:"long"})}),h("small",{textContent:`${d}/${tasks.length} done`})),
-        bar),
-      ul,addForm(i));
-    dropZone(col,i);
+    if(view==="day"&&i!==dayIdx)return;
+    const head=h("div",{className:"dh",style:"background:"+COLORS[i]},
+      h("div",{className:"row"},h("b",{textContent:DAYS[i]}),isToday&&h("span",{className:"badge",textContent:"TODAY"})),
+      h("div",{className:"row"},h("small",{textContent:date.toLocaleDateString(undefined,{day:"numeric",month:"long"})}),h("small",{textContent:`${d}/${tasks.length} done`})),
+      h("div",{className:"bar"},h("i",{style:"width:"+(tasks.length?d/tasks.length*100:0)+"%"})));
+    const col=h("section",{className:"day"+(isToday?" today":"")},head);
+    if(view==="day")col.append(dayNav(),addForm(i),...daySlots(tasks,i));
+    else{
+      head.classList.add("open");head.title="Open the day plan";
+      head.onclick=()=>{view="day";dayIdx=i;render()};
+      const ul=h("ul");
+      ordered(tasks).forEach(t=>ul.append(taskEl(t)));
+      if(!tasks.length)ul.append(h("li",{className:"empty",textContent:"No tasks yet"}));
+      col.append(ul,addForm(i));
+      dropZone(col,i);
+    }
     grid.append(col);
   });
+  $("#viewBtn").textContent=view==="day"?"🗓 Week view":"📋 Day plan";
   const pct=total?Math.round(done/total*100):0;
   $("#weekText").textContent=total?`${done} of ${total} tasks done, ${pct}%`:"No tasks this week yet";
   $("#weekBar").style.width=pct+"%";
@@ -192,6 +208,37 @@ function render(){
   el.className=od?"overdue":"";
 }
 
+// undone first, then by time (tasks without a time last), done tasks at the bottom
+const tkey=t=>t.time||"99";
+const ordered=ts=>[...ts].sort((a,b)=>a.done-b.done||(tkey(a)<tkey(b)?-1:tkey(a)>tkey(b)?1:0));
+const PERIODS=[[0,"🌙 Night"],[6,"🌅 Morning"],[12,"☀ Afternoon"],[17,"🌆 Evening"]];
+function dayNav(){
+  const go=n=>{dayIdx+=n;if(dayIdx<0){dayIdx=6;offset--}if(dayIdx>6){dayIdx=0;offset++}render()};
+  return h("div",{className:"daynav"},
+    h("button",{textContent:"◀ Previous day",onclick:()=>go(-1)}),
+    h("button",{textContent:"Today",onclick:()=>{offset=0;dayIdx=dayIndex(new Date());render()}}),
+    h("button",{textContent:"Next day ▶",onclick:()=>go(1)}),
+    h("button",{textContent:"🗓 Back to week",onclick:()=>{view="week";render()}}));
+}
+function daySlots(tasks,day){
+  const hours=new Set([...Array(18)].map((_,i)=>i+6)); // 06:00 to 23:00, plus any other hour that has tasks
+  tasks.forEach(t=>t.time&&hours.add(+t.time.slice(0,2)));
+  const out=[h("div",{className:"period",textContent:"📌 Anytime (no time set)"}),slot("＋ Add","",tasks.filter(t=>!t.time),day)];
+  let period;
+  [...hours].sort((a,b)=>a-b).forEach(hr=>{
+    const p=PERIODS.filter(([from])=>from<=hr).pop()[1];
+    if(p!==period)out.push(h("div",{className:"period",textContent:period=p}));
+    out.push(slot(pad(hr)+":00",pad(hr)+":00",tasks.filter(t=>t.time&&+t.time.slice(0,2)===hr),day));
+  });
+  return out;
+}
+function slot(label,time,tasks,day){
+  const ul=h("ul");ordered(tasks).forEach(t=>ul.append(taskEl(t)));
+  const row=h("div",{className:"slot"},h("button",{className:"hr",textContent:label,title:"Add a task at this time",onclick:()=>{
+    const f=$(`#grid form[data-day="${day}"]`);f.elements.time.value=time;f.elements.title.focus()}}),ul);
+  dropZone(row,day,time);
+  return row;
+}
 function taskEl(t){
   const title=h("span",{className:"t",textContent:t.title,title:"Double click to edit"});
   title.addEventListener("dblclick",()=>edit(title,t));
@@ -233,19 +280,21 @@ function del(id){
   const[arr,i]=find(id);
   if(arr&&confirm(`Delete "${arr[i].title}"?`)){arr.splice(i,1);save();render()}
 }
-function dropZone(col,day){
-  col.addEventListener("dragover",e=>{e.preventDefault();e.dataTransfer.dropEffect="move";col.classList.add("over")});
-  col.addEventListener("dragleave",e=>{if(!col.contains(e.relatedTarget))col.classList.remove("over")});
-  col.addEventListener("drop",e=>{
-    e.preventDefault();col.classList.remove("over");
+function dropZone(el,day,time){ // time: undefined keeps it, "" clears it, "HH:00" moves the task to that hour
+  el.addEventListener("dragover",e=>{e.preventDefault();e.dataTransfer.dropEffect="move";el.classList.add("over")});
+  el.addEventListener("dragleave",e=>{if(!el.contains(e.relatedTarget))el.classList.remove("over")});
+  el.addEventListener("drop",e=>{
+    e.preventDefault();el.classList.remove("over");
     const[arr,i]=find(e.dataTransfer.getData("text/plain")),target=curWeek().days[day];
-    if(!arr||arr===target)return;
-    target.push(arr.splice(i,1)[0]);
+    if(!arr)return;
+    const t=arr[i];
+    if(time!==undefined&&(time?t.time.slice(0,2)!==time.slice(0,2):t.time))t.time=time;
+    if(arr!==target)target.push(arr.splice(i,1)[0]);
     save();render();
   });
 }
 function addForm(day){
-  const f=h("form",{className:"add"},
+  const f=h("form",{className:"add","data-day":day},
     h("input",{name:"title",placeholder:"New task…",autocomplete:"off","aria-label":"Task title"}),
     h("input",{type:"time",name:"time","aria-label":"Time (optional)"}),
     h("select",{name:"priority","aria-label":"Priority (optional)"},
@@ -257,7 +306,7 @@ function addForm(day){
     if(!title)return el.title.focus();
     curWeek().days[day].push({id:uid(),title,time:el.time.value,priority:el.priority.value,done:false});
     save();render();
-    $(`#grid .day:nth-child(${day+1}) input[name=title]`).focus();
+    $(`#grid form[data-day="${day}"] input[name=title]`).focus();
   });
   return f;
 }
@@ -309,7 +358,8 @@ function applyTheme(){
 
 $("#prevBtn").onclick=()=>{offset--;render()};
 $("#nextBtn").onclick=()=>{offset++;render()};
-$("#todayBtn").onclick=()=>{offset=0;render()};
+$("#todayBtn").onclick=()=>{offset=0;dayIdx=dayIndex(new Date());render()};
+$("#viewBtn").onclick=()=>{if(view==="week"){view="day";dayIdx=offset===0?dayIndex(new Date()):0}else view="week";render()};
 $("#carryBtn").onclick=carryOver;
 $("#printBtn").onclick=()=>print();
 $("#exportBtn").onclick=exportData;
@@ -320,8 +370,8 @@ $("#notes").oninput=e=>{curWeek().notes=e.target.value;$("#printNotes").textCont
 document.addEventListener("keydown",e=>{
   if((e.key||"").toLowerCase()!=="n"||e.ctrlKey||e.metaKey||e.altKey)return;
   if(/^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement.tagName))return;
-  e.preventDefault();offset=0;render();
-  const inp=$(`#grid .day:nth-child(${dayIndex(new Date())+1}) input[name=title]`);
+  e.preventDefault();offset=0;dayIdx=dayIndex(new Date());render();
+  const inp=$(`#grid form[data-day="${dayIdx}"] input[name=title]`);
   inp.scrollIntoView({block:"center"});inp.focus();
 });
 // refresh the "today" highlight only when the date really changed, so typing is never wiped
